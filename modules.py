@@ -61,7 +61,7 @@ class Discriminator(nn.Module):
             self.module_list.append(layer)
 
         self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.pivotal = torch.empty(1,dim).clone().detach().requires_grad_(True).to(DEVICE)
+        self.pivotal = nn.Parameter(1,dim).to(DEVICE)
 
         torch.nn.init.orthogonal_(self.pivotal)
 
