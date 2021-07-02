@@ -103,6 +103,10 @@ for epoch in range(EPOCHS):
         mult = mult_score(r_score, d_score, factor=10.)
         dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:], inverse=True)
 
+        gen_optim.zero_grad()
+        dis_adv_loss.backward()
+        gen_optim.step()
+
     print("Real Score : {}, Diveristy Score : {}, Center Loss : {}, Radius Loss : {}".format(np.mean(real_scores),
                                                                                              np.mean(div_scores),
                                                                                              np.mean(center_losses),
