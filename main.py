@@ -43,8 +43,8 @@ gen_optim = torch.optim.Adam(params = generator.parameters(), lr =opt.lr, betas 
 """
 EPOCHS = opt.EPOCHS
 
-for epoch in range(EPOCHS):
-    print("EPOCH : {}/{}".format(epoch + 1, EPOCHS))
+for epoch in range(EPOCH):
+    print("EPOCH : {}/{}".format(epoch + 1, EPOCH))
     real_scores = []
     div_scores = []
     center_losses = []
@@ -73,15 +73,16 @@ for epoch in range(EPOCHS):
             Discriminator Train
         """
         embed_vec, pivot = discriminator(torch.cat([img, fake_img], dim=0))
+        pivot = F.normalize(pivot, p=2.0, dim=1, eps=1e-12, out=None) # pivot을 normalize 해줘야한다.
         real_s, v, v_proj = real_score(embed_vec, pivot, c)
-        real_scores.append(real_s)
+        real_scores.append(real_s.cpu().detach().numpy())
         div_s = div_score(v_proj, v)
-        div_scores.append(div_s)
+        div_scores.append(div_s.cpu().detach().numpy())
         mult = mult_score(real_s, div_s, factor=10.)
 
         dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:], inverse=False)
-        radius_loss = radius_eq_loss(v, embed_vec, c)
-        radius_losses.append(radius_loss)
+        radius_loss = radius_eq_loss(embed_vec, c)
+        radius_losses.append(radius_loss.cpu().detach().numpy())
         dis_loss = dis_adv_loss + radius_loss
 
         dis_optim.zero_grad()
@@ -96,13 +97,13 @@ for epoch in range(EPOCHS):
         fake_img = generator(latent)
         embed_vec, pivot = discriminator(torch.cat([img, fake_img]))
         r_score, v, v_proj = real_score(embed_vec, pivot, c)
-        real_scores.append(r_score)
+        real_scores.append(r_score.cpu().detach().numpy())
         d_score = div_score(v_proj, v)
-        div_scores.append(d_score)
+        div_scores.append(d_score.cpu().detach().numpy())
 
         mult = mult_score(r_score, d_score, factor=10.)
         dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:], inverse=True)
-
+        
         gen_optim.zero_grad()
         dis_adv_loss.backward()
         gen_optim.step()
