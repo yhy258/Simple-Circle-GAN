@@ -29,10 +29,9 @@ def mult_score(r_score, d_score, factor=10.):
 """
     여기 확인 해봐야할듯. generator때는 어떻게 되는지. relativistic GAN
 """
-def get_adv_loss(real_mult_score, gen_mult_score, inverse = False): # inverse -> generator 훈련.
-    loss = -torch.mean(torch.log(torch.sigmoid(real_mult_score - torch.mean(gen_mult_score))))-torch.mean(torch.log(torch.sigmoid(torch.mean(real_mult_score) - gen_mult_score)))
-    if inverse :
-        return 1/loss
+def get_adv_loss(real_mult_score, gen_mult_score): # inverse -> generator 훈련.
+    loss = -torch.mean(torch.log(torch.sigmoid(real_mult_score - torch.mean(gen_mult_score)+1e-8)))-torch.mean(torch.log(torch.sigmoid(torch.mean(real_mult_score) - gen_mult_score)+1e-8))
+    
     return loss
 
 # def my_huber_loss(loss): # loss는 bs, 1 형식의 텐서
@@ -65,3 +64,4 @@ def radius_eq_loss(v_emb, c):
     loss = criterion(R.expand_as(norm), norm)
     # 원래 논문상에서는 loss / bs 여야 하는데, 코드에서는 그냥 Loss로 쓴다..
     return loss
+
