@@ -80,7 +80,7 @@ for epoch in range(EPOCH):
         div_scores.append(div_s.cpu().detach().numpy())
         mult = mult_score(real_s, div_s, factor=10.)
 
-        dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:], inverse=False)
+        dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:])
         radius_loss = radius_eq_loss(embed_vec, c)
         radius_losses.append(radius_loss.cpu().detach().numpy())
         dis_loss = dis_adv_loss + radius_loss
@@ -102,7 +102,7 @@ for epoch in range(EPOCH):
         div_scores.append(d_score.cpu().detach().numpy())
 
         mult = mult_score(r_score, d_score, factor=10.)
-        dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:], inverse=True)
+        dis_adv_loss = get_adv_loss(mult[opt.batch_size:],mult[:opt.batch_size])
         
         gen_optim.zero_grad()
         dis_adv_loss.backward()
