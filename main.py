@@ -43,16 +43,16 @@ gen_optim = torch.optim.Adam(params = generator.parameters(), lr =opt.lr, betas 
 """
 EPOCHS = opt.EPOCHS
 
-for epoch in range(EPOCH):
-    print("EPOCH : {}/{}".format(epoch + 1, EPOCH))
+for epoch in range(EPOCHS):
+    print("EPOCH : {}/{}".format(epoch + 1, 100))
     real_scores = []
     div_scores = []
     center_losses = []
     radius_losses = []
     for img, _ in tqdm(train_loader):
         img = img.to(DEVICE)
-
-        latent = torch.randn(opt.batch_size, opt.hid_dim).to(DEVICE)
+        bs = img.size(0)
+        latent = torch.randn(bs, 128).to(DEVICE)
 
         fake_img = generator(latent).detach()
 
@@ -73,46 +73,68 @@ for epoch in range(EPOCH):
             Discriminator Train
         """
         embed_vec, pivot = discriminator(torch.cat([img, fake_img], dim=0))
-        pivot = F.normalize(pivot, p=2.0, dim=1, eps=1e-12, out=None) # pivot을 normalize 해줘야한다.
-        real_s, v, v_proj = real_score(embed_vec, pivot, c)
-        real_scores.append(real_s.cpu().detach().numpy())
-        div_s = div_score(v_proj, v)
-        div_scores.append(div_s.cpu().detach().numpy())
-        mult = mult_score(real_s, div_s, factor=10.)
+        pivot_norm = F.normalize(pivot, p=2.0, dim=1, eps=1e-12, out=None) # pivot을 normalize 해줘야한다.
+        
+        v = embed_vec - c
+        radius = safe_norm(v, dim =1)
+        pred_radius = torch.sqrt(torch.mean(torch.square(radius)))
+        dis_radius_loss = radius_criterion(radius, torch.ones_like(radius)*pred_radius)
 
-        dis_adv_loss = get_adv_loss(mult[:opt.batch_size], mult[opt.batch_size:])
-        radius_loss = radius_eq_loss(embed_vec, c)
-        radius_losses.append(radius_loss.cpu().detach().numpy())
-        dis_loss = dis_adv_loss + radius_loss
+        v = F.normalize(v, p=2.0, dim=1, eps=1e-12, out=None)
+        v_proj = pivot_norm * torch.sum(pivot_norm * v, dim =1, keepdims = True)
+        v_rej = v - v_proj
+        norm_proj = safe_norm(v_proj,dim=1, keepdims=True)
+        norm_rej = safe_norm(v_rej,dim=1, keepdims=True)
+        sigma_rej = safe_sigma(norm_rej)
+        sigma_proj = safe_sigma(norm_proj)
+
+        realness = norm_proj / sigma_proj
+        real_scores.append(realness.cpu().detach().numpy())
+        diversity = norm_rej / sigma_rej
+        div_scores.append(diversity.cpu().detach().numpy())
+
+        theta = torch.arctan(diversity/realness)
+        real_theta, fake_theta = torch.split(theta, [bs, bs])
+        
+        dis_adv_loss = get_adv_loss(real_theta, fake_theta)
+        dis_gan_loss = dis_adv_loss + dis_radius_loss
 
         dis_optim.zero_grad()
-        dis_loss.backward()
+        dis_gan_loss.backward()
         dis_optim.step()
 
         """
             Generator Train
         """
-        latent = torch.randn(opt.batch_size, opt.hid_dim).to(DEVICE)
+        latent = torch.randn(bs, 128).to(DEVICE)
 
         fake_img = generator(latent)
         embed_vec, pivot = discriminator(torch.cat([img, fake_img]))
-        r_score, v, v_proj = real_score(embed_vec, pivot, c)
-        real_scores.append(r_score.cpu().detach().numpy())
-        d_score = div_score(v_proj, v)
-        div_scores.append(d_score.cpu().detach().numpy())
+        pivot_norm = F.normalize(pivot, p=2.0, dim=1, eps=1e-12, out=None)
+        v = embed_vec - c
+        v = F.normalize(v, p=2.0, dim=1, eps=1e-12, out=None)
+        v_proj = pivot_norm * torch.sum(pivot_norm * v, dim =1, keepdims = True)
+        v_rej = v - v_proj
+        norm_proj = safe_norm(v_proj,dim=1, keepdims=True)
+        norm_rej = safe_norm(v_rej,dim=1, keepdims=True)
+        sigma_rej = safe_sigma(norm_rej)
+        sigma_proj = safe_sigma(norm_proj)
 
-        mult = mult_score(r_score, d_score, factor=10.)
-        dis_adv_loss = get_adv_loss(mult[opt.batch_size:],mult[:opt.batch_size])
+        realness = norm_proj / sigma_proj
+        diversity = norm_rej / sigma_rej
+
+        real_scores.append(realness.cpu().detach().numpy())
+        div_scores.append(diversity.cpu().detach().numpy())
+
+        theta = torch.arctan(diversity/realness)
+        real_theta, fake_theta = torch.split(theta, [bs, bs])
         
+        gen_gan_loss = get_adv_loss(fake_theta, real_theta)
+
         gen_optim.zero_grad()
-        dis_adv_loss.backward()
+        gen_gan_loss.backward()
         gen_optim.step()
-
-    print("Real Score : {}, Diveristy Score : {}, Center Loss : {}, Radius Loss : {}".format(np.mean(real_scores),
-                                                                                             np.mean(div_scores),
-                                                                                             np.mean(center_losses),
-                                                                                             np.mean(radius_losses)))
-
+    print("Real Score : {}, Diveristy Score : {}".format(np.mean(real_scores),np.mean(div_scores)))
 
 
 
